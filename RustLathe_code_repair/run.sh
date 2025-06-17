@@ -1,4 +1,4 @@
-export python_path="$HOME/code/Graduation_Desgin/RustFixing_project_v2"
+export python_path="$HOME/code/Graduation_Desgin/RustLathe_code_repair"
 export current_path=`pwd`
 
 # function: if a folder doesn't exsit, create it
