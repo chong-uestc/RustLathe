@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RustLathe Assistant</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background-color: #21759c;
+      color: #000000;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      padding: 1rem;
+      font-size: 1.5rem;
+      font-weight: 600;
+      background-color: #2a2a40;
+      text-align: center;
+      color: #ffffff;
+      border-bottom: 1px solid #444;
+    }
+    main {
+      flex: 1;
+      padding: 1rem;
+      overflow-y: auto;
+    }
+    .chat-box {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      width: 100%; /* 让chat-box占满父容器 */
+      max-width: none; /* 移除最大宽度限制 */
+    }
+    .file-upload {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      justify-content: center;
+    }
+    input[type="file"] {
+      background: #2a2a40;
+      color: white;
+      border: 1px solid #444;
+      padding: 0.5rem;
+      border-radius: 8px;
+    }
+    button {
+      background-color: #4f46e5;
+      color: white;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .response {
+      background-color: #2a2a40;
+      color: #ffffff;
+      padding: 1rem;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      font-family: 'Montserrat', sans-serif;;
+    }
+
+    /* 环状进度条设计 */
+    .circular-loader {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+    .circular-loader svg {
+      animation: rotate 2s linear infinite;
+      width: 48px;
+      height: 48px;
+    }
+    .circular-loader circle {
+      stroke: #4f46e5;
+      stroke-linecap: round;
+      animation: dash 1.5s ease-in-out infinite;
+    }
+    @keyframes rotate {
+      100% { transform: rotate(360deg); }
+    }
+    @keyframes dash {
+      0% { stroke-dasharray: 1, 150; stroke-dashoffset: 0; }
+      50% { stroke-dasharray: 90, 150; stroke-dashoffset: -35; }
+      100% { stroke-dasharray: 90, 150; stroke-dashoffset: -124; }
+    }
+
+    /* Drifter Stars 动态背景 */
+    #drifter-stars-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: -1;
+    }
+  </style>
+</head>
+<body>
+  <header>RustLathe Assistant</header>
+  <main>
+    <div class="chat-box">
+      <div class="file-upload">
+        <input type="file" id="rustFile" accept=".rs" />
+        <button onclick="submitRustCode()">提交修复</button>
+        <img src="/static/Ferris_good.png" alt="这是Ferris" width="100">
+      </div>
+      <div id="result"></div>
+    </div>
+  </main>
+
+  <canvas id="drifter-stars-bg"></canvas>
+
+  <script>
+    async function submitRustCode() {
+      const fileInput = document.getElementById('rustFile');
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = `
+        <div class="circular-loader">
+          <svg viewBox="22 22 44 44">
+            <circle cx="44" cy="44" r="20" fill="none" stroke-width="4" stroke="#4f46e5"/>
+          </svg>
+          <div style="text-align:center; font-size:1.2rem; font-family:'Montserrat', sans-serif; margin-top: 8px;">
+            正在上传并执行 RustLathe...
+          </div>
+        </div>
+      `;
+
+      const file = fileInput.files[0];
+      if (!file) {
+        resultDiv.innerHTML = '请选择一个Rust代码文件';
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/run_rustlathe', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        resultDiv.innerHTML = 'RustLathe 执行失败';
+        return;
+      }
+
+      const result = await response.json();
+
+      /*若edited_code和solution都为空，说明Rust代码不存在未定义行为*/
+      if ((result.edited_code === '')&&(result.solution === '')) {
+        resultDiv.innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: center; font-size:1.2rem; font-family:'Montserrat', sans-serif;">
+            <span>Rust代码未发现未定义行为!</span>
+            <img src="/static/Ferris_happy.png" alt="这也是Ferris" width="100" style="margin-left: 16px;">
+          </div>
+        `;
+      } 
+      /*若edited_code有修复失败字段，说明Rust代码存在未定义行为但是未修复成功*/
+      else if (result.edited_code === '糟糕,请检查上传文件,或参考建议手动修复Rust代码!') {
+        resultDiv.innerHTML = `
+          <style>
+            .responses-container {
+              display: flex;
+              width: 100%;
+              gap: 24px;
+            }
+            .response {
+              flex: 1 1 0;
+              border: 1px solid #23233a;
+              padding: 0;
+              border-radius: 10px;
+              background: #23233a;
+              text-align: left;
+              box-sizing: border-box;
+              min-width: 0;
+              font-family: monospace;
+              word-break: break-all;
+              cursor: pointer;
+              transition: 
+                box-shadow 0.2s, border-color 0.2s,
+                flex 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                padding 0.5s;
+              overflow: hidden;
+              max-height: 60px;
+              padding: 18px 18px 0 18px;
+              margin-bottom: 0;
+              display: flex;
+              flex-direction: column;
+              justify-content: flex-start;
+            }
+            .response h3 {
+              margin: 0;
+              text-align: left;
+              font-size: 1.1rem;
+            }
+            .response .response-content {
+              opacity: 0;
+              max-height: 0;
+              transition: opacity 0.3s, max-height 0.5s;
+              overflow-y: auto;
+              margin-top: 0.5em;
+              font-size: 1rem;
+              max-height: 320px;
+            }
+            .response.active {
+              border-color: #4f46e5;
+              box-shadow: 0 0 8px #4f46e5;
+              background: #282850;
+              flex: 3 1 0;
+              max-height: 500px;
+              padding: 18px;
+            }
+            .response.active .response-content {
+              opacity: 1;
+              max-height: 700px;
+              transition: opacity 0.3s, max-height 0.5s;
+            }
+          </style>
+          <div class="responses-container">
+            <div class="response active">
+              <h3><strong>修复建议：</strong></h3>
+              <div class="response-content">${result.solution}</div>
+            </div>
+            <div class="response">
+              <h3><strong>修复后代码：</strong></h3>
+              <div class="response-content">
+                <div style="display: flex; align-items: center; justify-content: center;">${result.edited_code}<img src="/static/Ferris_sleep.png" alt="这还是Ferris" width="200"></div>
+              </div>
+            </div>
+            <div class="response">
+              <h3><strong>代码评估：</strong></h3>
+              <div class="response-content">
+                <div style="display: flex; align-items: center; justify-content: center;">${result.score}<img src="/static/Ferris_speechless.png" alt="这依然是Ferris" width="200"></div>
+              </div>
+            </div>
+          </div>
+        `;
+      } 
+      /*Rust代码存在未定义行为，且RustLathe修复成功的情况*/
+      else {
+        resultDiv.innerHTML = `
+          <style>
+            .responses-container {
+              display: flex;
+              width: 100%;
+              gap: 24px;
+            }
+            .response {
+              flex: 1 1 0;
+              border: 1px solid #23233a;
+              padding: 0;
+              border-radius: 10px;
+              background: #23233a;
+              text-align: left;
+              box-sizing: border-box;
+              min-width: 0;
+              font-family: monospace;
+              word-break: break-all;
+              cursor: pointer;
+              transition: 
+                box-shadow 0.2s, border-color 0.2s,
+                flex 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                padding 0.5s;
+              overflow: hidden;
+              max-height: 60px;
+              padding: 18px 18px 0 18px;
+              margin-bottom: 0;
+              display: flex;
+              flex-direction: column;
+              justify-content: flex-start;
+            }
+            .response h3 {
+              margin: 0;
+              text-align: left;
+              font-size: 1.1rem;
+            }
+            .response .response-content {
+              opacity: 0;
+              max-height: 0;
+              transition: opacity 0.3s, max-height 0.5s;
+              overflow-y: auto; /* 支持垂直滚动 */
+              margin-top: 0.5em;
+              font-size: 1rem;
+              /* 建议加一个最大高度，避免撑爆卡片 */
+              max-height: 320px;
+            }
+            .response.active {
+              border-color: #4f46e5;
+              box-shadow: 0 0 8px #4f46e5;
+              background: #282850;
+              flex: 3 1 0;
+              max-height: 500px;
+              padding: 18px;
+            }
+            .response.active .response-content {
+              opacity: 1;
+              max-height: 700px;
+              transition: opacity 0.3s, max-height 0.5s;
+            }
+          </style>
+          <div class="responses-container">
+            <div class="response active">
+              <h3><strong>修复建议：</strong></h3>
+              <div class="response-content">${result.solution}</div>
+            </div>
+            <div class="response">
+              <h3><strong>修复后代码：</strong></h3>
+              <div class="response-content">${result.edited_code}</div>
+            </div>
+            <div class="response">
+              <h3><strong>代码评估：</strong></h3>
+              <div class="response-content">${result.score}</div>
+            </div>
+          </div>
+        `;
+      }
+      // expanding cards JS
+        const panels = resultDiv.querySelectorAll('.response');
+        panels.forEach(panel => {
+          panel.addEventListener('click', () => {
+            panels.forEach(p => p.classList.remove('active'));
+            panel.classList.add('active');
+          });
+        });
+    }
+
+    // Drifter Stars 动态背景
+    const canvas = document.getElementById('drifter-stars-bg');
+    const ctx = canvas.getContext('2d');
+    let stars = [];
+    const STAR_NUM = 300; // 星星数量设置
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    function randomStar() {
+      const angle = Math.random() * 2 * Math.PI;
+      const radius = Math.random() * Math.max(canvas.width, canvas.height) * 0.5;
+      return {
+        x: canvas.width / 2 + Math.cos(angle) * radius,
+        y: canvas.height / 2 + Math.sin(angle) * radius,
+        vx: (Math.random() - 0.5) * 0.1,
+        vy: (Math.random() - 0.5) * 0.1,
+        r: Math.random() * 1.4 + 0.3,
+        alpha: Math.random() * 0.5 + 0.5,
+        alphaDir: Math.random() > 0.5 ? 1 : -1 // 用于闪烁
+      };
+    }
+    function createStars() {
+      stars = [];
+      for (let i = 0; i < STAR_NUM; i++) {
+        stars.push(randomStar());
+      }
+    }
+    function drawStars() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const s of stars) {
+        ctx.save();
+        ctx.globalAlpha = s.alpha;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, 2 * Math.PI);
+        ctx.fillStyle = "#fff";
+        ctx.shadowColor = "#fff";
+        ctx.shadowBlur = 5; // 更闪耀
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+    function updateStars() {
+      // 鼠标位置，默认为屏幕中心
+      const target = window._starMouse || { x: canvas.width / 2, y: canvas.height / 2 };
+      const attractRadius = 200; // 聚集半径
+      for (const s of stars) {
+        const dx = target.x - s.x;
+        const dy = target.y - s.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < attractRadius) {
+          // 在范围内，朝鼠标聚集
+          s.vx += dx * 0.0015;
+          s.vy += dy * 0.0015;
+        } else {
+          // 不在范围内，轻微漂移
+          s.vx += (Math.random() - 0.5) * 0.02;
+          s.vy += (Math.random() - 0.5) * 0.02;
+        }
+
+        // 限制最大速度
+        const maxV = 0.05;
+        s.vx = Math.max(Math.min(s.vx, maxV), -maxV);
+        s.vy = Math.max(Math.min(s.vy, maxV), -maxV);
+
+        s.x += s.vx;
+        s.y += s.vy;
+        // wrap around
+        if (s.x < 0) s.x = canvas.width;
+        if (s.x > canvas.width) s.x = 0;
+        if (s.y < 0) s.y = canvas.height;
+        if (s.y > canvas.height) s.y = 0;
+        // alpha 闪烁
+        s.alpha += 0.008 * s.alphaDir;
+        if (s.alpha > 1) { s.alpha = 1; s.alphaDir = -1; }
+        if (s.alpha < 0.4) { s.alpha = 0.4; s.alphaDir = 1; }
+      }
+    }
+    // 鼠标监听
+    window._starMouse = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    window.addEventListener('mousemove', e => {
+      window._starMouse = { x: e.clientX, y: e.clientY };
+    });
+    canvas.addEventListener('mouseleave', () => {
+      window._starMouse = { x: canvas.width / 2, y: canvas.height / 2 };
+    });
+    function animate() {
+      drawStars();
+      updateStars();
+      requestAnimationFrame(animate);
+    }
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      createStars();
+    });
+    resizeCanvas();
+    createStars();
+    animate();
+  </script>
+</body>
+</html>
