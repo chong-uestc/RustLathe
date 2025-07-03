@@ -6,7 +6,7 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 
 RUST_CODE_DIR = os.path.expanduser("~/rust_thetis_test/rust_one_trial")
-RUSTLATHE_SCRIPT = os.path.expanduser("~/code/Graduation_Desgin/RustFixing_project_v2/run_frontend.sh")
+RUSTLATHE_SCRIPT = os.path.expanduser("~/code/Graduation_Desgin/RustLathe_code_repair/run_frontend.sh")
 SAVE_DIR = os.path.expanduser("~/save_improvement_file")
 
 @app.route('/')
