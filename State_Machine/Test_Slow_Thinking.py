@@ -22,8 +22,8 @@ code_count = 0
 
 Best_Code = ""
 client = OpenAI(
-    api_key="sk-iT55g2gYsI01wY3Q2ka2PokA4DdZPcIpbBmSCalmgqAiWbgE",
-    base_url="https://api.pro365.top/v1/"
+    api_key=" ",
+    base_url=" "
 )
 
 
