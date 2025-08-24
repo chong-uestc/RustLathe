@@ -12,16 +12,23 @@ class StateMachine:
         self.max_repair = 6  # 修复次数上限
         self.case_name_count = {}  # 记录每个case_name被索引的次数
         self.used_agents = set()  # 记录所有已用过的agent
+        self.best_rust_code = None  # 记录error数量最少的rust代码
+        self.best_error_count = None  # 记录最少的error数量
     
     def run(self, rust_code):
         """运行状态机"""
         self.state = "INIT"
         print(f"进入状态: {self.state}")
+        original_rust_code = rust_code # 记录下原始代码
 
         while self.state != "END":
             if self.state == "INIT":
+                self.repair_count = 0 # 如果语义评估失败重置为初始状态，修复次数需要置于0
+                rust_code = original_rust_code # 如果语义评估失败重置为初始状态，rust_code需要重置为原始代码
                 error_message, error_exist = self.miri_check(rust_code) # error_message是miri报错信息，error_exist是状态机跳转判断
-                original_rust_code = rust_code # 记录下原始代码
+                # 初始化 best_rust_code 和 best_error_count
+                self.best_rust_code = rust_code
+                self.best_error_count = error_calculate(error_message)
                 original_error_message = error_message # 记录下原始报错信息
                 if error_exist:
                     self.state = "SELECT_AGENT"
@@ -37,8 +44,13 @@ class StateMachine:
                 self.repair_count += 1
                 rust_code = self.current_agent_repair(rust_code, self.current_agent, error_message)
                 error_message, error_exist = self.miri_check(rust_code)
+                error_count = error_calculate(error_message)
+                # 更新 best_rust_code
+                if self.best_error_count is None or error_count < self.best_error_count:
+                    self.best_error_count = error_count
+                    self.best_rust_code = rust_code
                 if error_exist:
-                    if self.repair_count > self.max_repair:
+                    if self.repair_count >= self.max_repair:
                         print("修复次数超过上限，直接到 END")
                         self.state = "END"
                     else:
@@ -54,8 +66,8 @@ class StateMachine:
                     self.state = "INIT"
 
             print(f"当前状态 -> {self.state}")
-        
         print("状态机结束")
+        print(f"best_rust_code error_count: {self.best_error_count}")
         return rust_code
 
     # ====== 以下是功能函数的实现 ======
@@ -110,7 +122,10 @@ class StateMachine:
     def current_agent_repair(self, code, agent_number, error_message):
         """调用 Agent 修复代码"""
         print(f"Agent{agent_number} 正在修复代码...")
-        code = agent_function_call(agent_number, code, error_message)
+        if agent_number != '4': 
+            code = agent_function_call(agent_number, code, error_message)
+        else:
+            code = self.best_rust_code # agent4需要单独设置，回滚到error数量最少的rust代码
         return code
 
     def semantic_eval(self, code, original_error_message, original_rust_code):
