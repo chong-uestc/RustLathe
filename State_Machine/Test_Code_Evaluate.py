@@ -51,8 +51,8 @@ def count_errors(output):
     return len(re.findall(r"error(\[\w+\])?:", output))
 
 client = OpenAI(
-    api_key="sk-iT55g2gYsI01wY3Q2ka2PokA4DdZPcIpbBmSCalmgqAiWbgE",
-    base_url="https://api.pro365.top/v1/"
+    api_key=" ",
+    base_url=" "
 )
 
 def gpt_analyze_code(prompt, original_code_snippet,error_message,edited_code_snippet):
