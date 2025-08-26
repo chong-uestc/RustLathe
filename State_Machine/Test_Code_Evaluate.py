@@ -51,8 +51,8 @@ def count_errors(output):
     return len(re.findall(r"error(\[\w+\])?:", output))
 
 client = OpenAI(
-    api_key=" ",
-    base_url=" "
+    api_key="sk-iT55g2gYsI01wY3Q2ka2PokA4DdZPcIpbBmSCalmgqAiWbgE",
+    base_url="https://api.pro365.top/v1/"
 )
 
 def gpt_analyze_code(prompt, original_code_snippet,error_message,edited_code_snippet):
@@ -121,6 +121,7 @@ def agent_code_analyze(original_code_snippet,error_message,edited_code_snippet):
         "   - Preserves the core functional semantics (functions/APIs used, return values/types, memory operations, and control flow).\n"
         "   - Maintains calls to the same key APIs as in Snippet A, unless the API itself is inherently unfixable.\n"
         "5. Consider edge cases: Does Snippet B introduce new UB? Does it maintain memory safety, correctness, and intended results?\n"
+        "6. Focus more on assertion (like assert!, assert_eq!), especially on assertion condition. If the condition leads to panic but it is irrational, the fix is incorrect."
         "\n"
         "Do not attempt to write or suggest a corrected version of the code.\n"
         "\n"

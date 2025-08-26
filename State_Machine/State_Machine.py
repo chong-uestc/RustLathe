@@ -1,5 +1,6 @@
 import numpy as np
 import psycopg2
+from pathlib import Path
 from psycopg2.extensions import register_adapter, AsIs
 psycopg2.extensions.register_adapter(np.float32, psycopg2._psycopg.AsIs)
 from Test_Slow_Thinking import read_code_from_file, run_cargo_miri, error_calculate, refine, get_embeddings, agent_function_call
@@ -9,7 +10,8 @@ class StateMachine:
     def __init__(self):
         self.state = "INIT"
         self.repair_count = 0
-        self.max_repair = 6  # 修复次数上限
+        self.max_repair = 7  # 修复次数上限
+        self.max_beyond_limits = 10 # 超次轮数上限
         self.case_name_count = {}  # 记录每个case_name被索引的次数
         self.used_agents = set()  # 记录所有已用过的agent
         self.best_rust_code = None  # 记录error数量最少的rust代码
@@ -20,6 +22,7 @@ class StateMachine:
         self.state = "INIT"
         print(f"进入状态: {self.state}")
         original_rust_code = rust_code # 记录下原始代码
+        self.beyond_limits = 0
 
         while self.state != "END":
             if self.state == "INIT":
@@ -33,6 +36,9 @@ class StateMachine:
                 if error_exist:
                     self.state = "SELECT_AGENT"
                 else:
+                    pass_code_file = '/home/wyc/save_improvement_file/pass/' + PATH_NAME + '_passed.rs'
+                    with open(pass_code_file, 'w') as file:
+                        file.write(original_rust_code)
                     self.state = "END"
 
             elif self.state == "SELECT_AGENT":
@@ -51,8 +57,17 @@ class StateMachine:
                     self.best_rust_code = rust_code
                 if error_exist:
                     if self.repair_count >= self.max_repair:
-                        print("修复次数超过上限，直接到 END")
-                        self.state = "END"
+                        self.beyond_limits += 1
+                        if self.beyond_limits >= self.max_beyond_limits:
+                            print("修复次数超过上限，直接到 END")
+                            print(f"{PATH_NAME}.rs存在的未定义行为难以解决，请人工核查!")
+                            fail_code_file = '/home/wyc/save_improvement_file/failure/' + PATH_NAME + '_failed.rs'
+                            with open(fail_code_file, 'w') as file:
+                                file.write(original_rust_code)
+                            self.state = "END"
+                        else:
+                            print(f"第{self.beyond_limits}轮修复失败，回到 INIT")
+                            self.state = "INIT"
                     else:
                         self.state = "SELECT_AGENT"
                 else:
@@ -60,6 +75,10 @@ class StateMachine:
 
             elif self.state == "SEMANTIC_EVAL":
                 if self.semantic_eval(rust_code, original_error_message, original_rust_code):
+                    # 自动语义评估通过，把修复好的代码存储到本地
+                    edited_code_file = '/home/wyc/save_improvement_file/edited_code_saving/' + PATH_NAME + '_edited.rs'
+                    with open(edited_code_file, 'w') as file:
+                        file.write(rust_code)
                     self.state = "END"
                 else:
                     print("语义评估未通过，回到 INIT")
@@ -136,6 +155,10 @@ class StateMachine:
         print(f"Evaluation:\n{fault_localization}")
         print(f"Score: {score}")
         if score == 1:
+            # 自动语义评估通过的话则把语义评估的相关信息记录下来
+            record_file_path = '/home/wyc/save_improvement_file/score_recording/' + PATH_NAME + '_record.txt'
+            with open(record_file_path, 'w', encoding='utf-8') as file:
+                file.write(f"Analysis:\n{analysis}\n\nFault localization:\n{fault_localization}\nScore:{score}")
             return True
         else:
             return False
@@ -166,10 +189,24 @@ def find_similar_errors(embedding):
     # print(result)
     return result
 
+def slow_process_files_in_directory(directory_path):
+    """处理目录下的所有Rust文件"""
+    pathlist = Path(directory_path).rglob('*.rs')
+    # print("step1....")
+    code_count = 0
+    for path in pathlist: 
+        # 因为path是Path对象，所以转换为字符串
+        global PATH_NAME
+        PATH_NAME = path.stem
+        code_count += 1
+        print(f"正在处理第{code_count}个Rust代码{PATH_NAME}.rs...")
+        fsm = StateMachine()
+        rust_code = read_code_from_file(str(path))
+        result = fsm.run(rust_code)
+        print("最终代码:\n", result)
+
 # ========= 测试运行 =========
 if __name__ == "__main__":
-    fsm = StateMachine()
-    rust_code = read_code_from_file("/home/wyc/rust_thetis_test/rust_one_trial/no_global_allocator.rs")
-    result = fsm.run(rust_code)
-    print("最终代码:\n", result)
+    directory_path = '/home/wyc/rust_thetis_test/rust_one_trial'
+    slow_process_files_in_directory(directory_path)
 

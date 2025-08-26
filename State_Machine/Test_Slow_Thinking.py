@@ -22,8 +22,8 @@ code_count = 0
 
 Best_Code = ""
 client = OpenAI(
-    api_key=" ",
-    base_url=" "
+    api_key="sk-iT55g2gYsI01wY3Q2ka2PokA4DdZPcIpbBmSCalmgqAiWbgE",
+    base_url="https://api.pro365.top/v1/"
 )
 
 
@@ -245,7 +245,8 @@ def agent1(code,error_message):
     prompt = "You will be provide with a code snippet in Rust and its error information under miri test\
                 1. Read the error information from the miri test carefully and identify the undefined behavior required to handle.\
                 2. Fix the code snippet. Pre-assertions are added to determine before undefined behavior is possible, thus preventing undefined behavior from occurring.\
-                3. Important and must do: Only assertions are added, no other modules of the code (including inputs, code structure, statements, etc.) are adjusted or deleted.\
+                3. Important and must do: fix the code mainly relying on adding assertions, no other modules of the code (including inputs, code structure, statements, etc.) are adjusted or deleted.\
+                4. In particular, make sure the conditions of assertions meaningful! (Do not add meaningless assertion like 'assert!(std::ptr::eq(leaked, leaked))'!)\
                 4. Output format: output only the proposed code in ``rust begin and ``end format."
     
     codepath = modify_code(prompt,code,error_message)
